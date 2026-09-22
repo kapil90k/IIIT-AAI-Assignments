@@ -1,6 +1,6 @@
 # InboxHero
 
-Repository: **git-repo-name**
+Repository: **https://github.com/kapil90k/iiit-fortnight6**
 
 Student: Kapil Kumar  
 Roll number: `evernorth-aai-1197201`

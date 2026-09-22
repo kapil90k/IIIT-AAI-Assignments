@@ -1,6 +1,6 @@
 {
   "student": "Kapil Kumar, evernorth-aai-1197201",
-  "repo": "git-repo-name",
+  "repo": "https://github.com/kapil90k/iiit-fortnight6",
   "system": {
     "framework": "none",
     "model": "Ollama gemma3:4b for non-obvious classification and post-run reflection when INBOXHERO_MODEL_ENABLED=1; safe local fallback keeps every manifest command runnable offline",

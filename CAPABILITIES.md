@@ -1,7 +1,7 @@
 # CAPABILITIES.md — InboxHero
 
 **Student:** Kapil Kumar, evernorth-aai-1197201  
-**Repository:** git-repo-name
+**Repository:** https://github.com/kapil90k/iiit-fortnight6
 
 Run every capability through one entry point:
 

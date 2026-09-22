@@ -1,0 +1,12 @@
+{
+  "action": "send",
+  "message_id": "m043",
+  "to": "aria.f@northwind.vc",
+  "cc": [],
+  "subject": "Re: one more slot",
+  "body": "Thanks for the update. Your earlier note proposed Tuesday the 15th at 3:00pm. Monday at 9:00am will not work because I do not take meetings before 11:00. Could your partner join the earlier proposed Tuesday 3:00pm slot if it is still available, or could we use Monday at 11:00 or later?",
+  "cited_message_ids": [
+    "m010",
+    "m041"
+  ]
+}
