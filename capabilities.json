@@ -1,0 +1,113 @@
+{
+  "student": "Kapil Kumar, evernorth-aai-1197201",
+  "repo": "git-repo-name",
+  "system": {
+    "framework": "none",
+    "model": "Ollama gemma3:4b for non-obvious classification and post-run reflection when INBOXHERO_MODEL_ENABLED=1; safe local fallback keeps every manifest command runnable offline",
+    "messages_processed": 100,
+    "rule_handled": 51,
+    "dispositions": [
+      "reply",
+      "archive",
+      "defer",
+      "delegate",
+      "escalate"
+    ],
+    "retrieval": "thread-walk with keyword fallback",
+    "irreversible": [
+      "send",
+      "delete"
+    ],
+    "reversible": [
+      "draft",
+      "label",
+      "archive",
+      "defer"
+    ],
+    "gate": "both",
+    "preference_demo": "m041: never accept meetings before 11:00; applied to m043 after a fresh-process restart"
+  },
+  "capabilities": [
+    {
+      "id": "R1",
+      "name": "Zero the inbox",
+      "tier": "B",
+      "claim": "Assigns all 100 messages exactly one disposition and reason, using rules for 51 obvious messages and leaving zero undecided.",
+      "command": "python demo.py --cap R1",
+      "observable": "Prints one row per message followed by 'messages: 100', 'rule handled: 51', and 'undecided: 0'; writes decisions.json.",
+      "evidence": "trace.jsonl events tagged cap=R1, including 100 decision events and the executed plan"
+    },
+    {
+      "id": "R2",
+      "name": "Grounded scheduling reply",
+      "tier": "B",
+      "claim": "Drafts the reply to m043 using m010's Tuesday 15th at 3:00pm proposal and m041's no-meetings-before-11 rule, and records both citations.",
+      "command": "python demo.py --cap R2",
+      "observable": "Prints a draft referring to the earlier Tuesday 15th at 3:00pm proposal, declining Monday 9:00am, offering 11:00am or later, and citing ['m010', 'm041'].",
+      "evidence": "trace.jsonl events tagged cap=R2: read(m010), read(m041), then one draft event citing exactly those ids"
+    },
+    {
+      "id": "R3",
+      "name": "Gate irreversible sends",
+      "tier": "C",
+      "claim": "Routes every send through one gate_send() function; dry-run records the exact proposal but suppresses all outbox writes.",
+      "command": "python demo.py --cap R3 --dry-run",
+      "observable": "Prints the complete proposed investor reply, outcome 'dry-run', and 'outbox writes: 0' on a clean checkout.",
+      "evidence": "trace.jsonl events tagged cap=R3 with proposed action, human_decision=not_requested_dry_run, and outcome=suppressed"
+    },
+    {
+      "id": "R4",
+      "name": "Persistent meeting preference",
+      "tier": "C",
+      "claim": "Stores the m041 no-meetings-before-11 preference in one process and applies it to m043 in a different fresh process.",
+      "command": "python demo.py --cap R4",
+      "observable": "Prints two different process ids, then a draft that rejects 9:00am and offers 11:00am or later with citations m010 and m041.",
+      "evidence": "preferences.json plus cap=R4 trace events showing preference_saved_in_process and the fresh process plan with a different process_id, followed by reads, draft citations, and reflection"
+    },
+    {
+      "id": "R5",
+      "name": "Refuse embedded instructions",
+      "tier": "C",
+      "claim": "Refuses and reports four prompt-injection messages without sending, deleting, forwarding, or saving their requested preferences.",
+      "command": "python demo.py --cap R5",
+      "observable": "Prints FLAGGED rows for m017, m024, m039, and m047, naming each attempted action and stating that it was refused and left in place.",
+      "evidence": "trace.jsonl events tagged cap=R5, including refusal events for all four ids and an owner_warning event"
+    },
+    {
+      "id": "R6",
+      "name": "Three-pane dashboard",
+      "tier": "C",
+      "claim": "Builds pending, flagged, and commitments panes with source citations, one multi-message commitment, and an explicit Sep 15 3:00pm conflict.",
+      "command": "python demo.py --cap R6",
+      "observable": "Writes dashboard.html and dashboard.json, prints commitments: 8, and prints the conflict between investor call m010 and dentist m061.",
+      "evidence": "dashboard.html, dashboard.json, and trace.jsonl events tagged cap=R6"
+    },
+    {
+      "id": "X1",
+      "name": "Unread sender lookup",
+      "tier": "A",
+      "claim": "Lists unread messages from a requested sender without invoking a model.",
+      "command": "python demo.py --cap X1 --sender priya@paperjet.io",
+      "observable": "Prints a JSON list containing Priya's unread message ids, subjects, and timestamps.",
+      "evidence": "trace.jsonl event tagged cap=X1 and event=lookup"
+    },
+    {
+      "id": "X2",
+      "name": "Follow-up tracking",
+      "tier": "B",
+      "claim": "Finds owner-sent messages unanswered for at least three days and drafts cited follow-ups.",
+      "command": "python demo.py --cap X2",
+      "observable": "Prints JSON follow-ups including unanswered m044; m003 is absent because later replies exist in its thread.",
+      "evidence": "trace.jsonl events tagged cap=X2 and event=follow_up"
+    },
+    {
+      "id": "X3",
+      "name": "Morning digest",
+      "tier": "B",
+      "claim": "Produces one JSON digest separating messages needing the owner, messages that can wait, the auto-archive count, and security flags.",
+      "command": "python demo.py --cap X3",
+      "observable": "Prints needs_you, can_wait, auto_archived_count, and security_flags sections generated from the same zero-inbox decisions.",
+      "evidence": "trace.jsonl events tagged cap=X3, including all decision events and one digest event"
+    }
+  ]
+}
