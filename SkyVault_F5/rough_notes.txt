@@ -1,0 +1,363 @@
+PROJECT SKYVAULT - STUDENT NOTES / RUN DUMP
+============================================================
+
+Roll number: evernorth-aai-1197201
+
+Project folder:
+C:\Users\C9J7S4\Downloads\workspace\usmis-dms-project-usm\AAI-Solutions\fortnight-5\FlightOps_KapilKumar_F5
+
+What this assignment does:
+- Extends Assignment 04 FlightOps. It is not a fresh rewrite.
+- Adds persistent memory that survives process restarts.
+- Exposes all tools through a hand-built MCP-style JSON-RPC layer.
+- The agent is the Host and cannot import tools.py directly.
+- Uses no LangChain/CrewAI/AutoGen and no MCP SDK.
+
+
+ONE-TIME SETUP
+============================================================
+
+Open PowerShell:
+
+cd "C:\Users\C9J7S4\Downloads\workspace\usmis-dms-project-usm\AAI-Solutions\fortnight-5\FlightOps_KapilKumar_F5"
+
+Install dependencies:
+
+python -m pip install -r requirements.txt
+
+Optional Ollama setup for free-form LLM questions:
+
+ollama pull gemma3:4b
+ollama serve
+
+The deterministic assignment demonstrations do not require Ollama.
+
+
+PART 1 - PERSISTENT MEMORY
+============================================================
+
+Main files:
+- memory.py
+- agent.py
+- memory_store.json (created at runtime)
+
+Important notes:
+- remember(key, value, source) writes facts to JSON.
+- recall(query) searches saved facts.
+- memory_summary() is loaded at every run start and placed in the
+  system prompt.
+- Conflict rule: the same normalized key overwrites the previous value.
+- Example: "Preferred Terminal" becomes "preferred_terminal".
+
+Clean old demo memory (optional):
+
+Remove-Item .\memory_store.json -ErrorAction SilentlyContinue
+
+Start first session:
+
+python main.py
+
+Prompt:
+
+I usually work Terminal 2, remember that.
+
+Expected:
+
+I will remember that your preferred terminal is T2.
+
+Enter "exit", then inspect the file:
+
+Get-Content .\memory_store.json
+
+Start a completely new process:
+
+python main.py
+
+Prompt:
+
+Find me an open gate.
+
+Expected:
+
+Using your saved T2 preference, available gate B13 is open.
+
+Expected tool order:
+
+recall -> find_available_gate
+
+Direct summary check:
+
+python -c "from memory import memory_summary; print(memory_summary())"
+
+Expected summary:
+
+- preferred_terminal: T2 (source: user)
+
+
+PART 2 - MCP JSON-RPC MESSAGE LIFECYCLE
+============================================================
+
+Main files:
+- mcp_client.py
+- mcp_server.py
+
+Important notes:
+- MCP is implemented with normal Python dictionaries.
+- No network transport is required.
+- No MCP SDK is used.
+- Required methods are initialize, tools/list, and tools/call.
+- Every request has jsonrpc, id, method, and params.
+- Every response has the same id plus result or error.
+
+Run a complete lifecycle:
+
+python -c "import json; from mcp_client import MCPClient; c=MCPClient(); c.list_tools(); c.call_tool('get_weather', {'airport':'HYD'}); print(json.dumps(c.trace, indent=2))"
+
+Expected request order:
+
+initialize -> tools/list -> tools/call
+
+Unknown-tool test:
+
+python -c "import json; from mcp_client import MCPClient; c=MCPClient(); c.call_tool('not_a_tool', {}); print(json.dumps(c.trace[-1], indent=2))"
+
+Expected error code:
+
+-32001
+
+Missing-argument test:
+
+python -c "import json; from mcp_client import MCPClient; c=MCPClient(); c.call_tool('get_weather', {}); print(json.dumps(c.trace[-1], indent=2))"
+
+Expected error code:
+
+-32602
+
+
+PART 3 - MCP SERVER AND TOOL REGISTRY
+============================================================
+
+Main files:
+- mcp_server.py
+- schemas.py
+- tools.py
+
+Important notes:
+- ToolRegistry knows tool functions and schemas.
+- MCPServer only handles protocol requests and delegates execution.
+- This separation means the server does not need business-tool logic.
+- Six FlightOps tools plus remember and recall = eight tools.
+
+List all registered tools:
+
+python -c "from mcp_server import ToolRegistry; r=ToolRegistry(); print(len(r.list_tools())); print(*[t['name'] for t in r.list_tools()], sep='\n')"
+
+Expected count:
+
+8
+
+Expected names:
+
+get_flight_status
+search_passenger
+maintenance_history
+find_available_gate
+get_weather
+lookup_aircraft
+remember
+recall
+
+Inspect full schemas:
+
+python -c "import json; from mcp_server import ToolRegistry; print(json.dumps(ToolRegistry().list_tools(), indent=2))"
+
+Raw server call:
+
+python -c "import json; from mcp_server import MCPServer; s=MCPServer(); req={'jsonrpc':'2.0','id':10,'method':'tools/call','params':{'name':'find_available_gate','arguments':{'terminal':'T2'}}}; print(json.dumps(s.handle(req), indent=2))"
+
+Expected gate:
+
+B13
+
+Focused tests:
+
+python -m pytest tests/test_memory_mcp.py -q
+
+Expected:
+
+3 passed
+
+
+PART 4 - MCP CLIENT AND AGENT HOST
+============================================================
+
+Main files:
+- mcp_client.py
+- agent.py
+- gatebot.py
+
+Important notes:
+- MCPClient has list_tools() and call_tool(name, arguments).
+- agent.py gets LLM declarations dynamically from list_tools().
+- agent.py does not import tools.py.
+- Every operational tool invocation goes through MCPClient.
+- gatebot.py proves another consumer can reuse the tools.
+
+Test MCPClient:
+
+python -c "from mcp_client import MCPClient; c=MCPClient(); print('Tools:', len(c.list_tools())); print('Result:', c.call_tool('find_available_gate', {'terminal':'T2'}))"
+
+Confirm agent.py has no direct import:
+
+Select-String -Path .\agent.py -Pattern "from tools|import tools"
+
+Expected:
+
+No output.
+
+Show where tools.py is imported:
+
+Select-String -Path .\*.py -Pattern "from tools|import tools"
+
+Expected:
+
+Only mcp_server.py.
+
+Verify declarations come through MCP:
+
+python -c "from mcp_client import MCPClient; from agent import _model_tool_declarations; c=MCPClient(); d=_model_tool_declarations(c.list_tools()); print(len(d)); print(*[x['function']['name'] for x in d], sep='\n')"
+
+Verify agent MCP methods:
+
+python -c "from agent import run_agent; r=run_agent('Is AI203 likely to depart on time?'); print([x['tool'] for x in r['tool_journal']]); print([x['request']['method'] for x in r['mcp_trace']])"
+
+Expected:
+
+Tools:
+get_flight_status, get_weather, maintenance_history
+
+MCP methods:
+initialize, tools/list, tools/call, tools/call, tools/call
+
+Run independent consumer:
+
+python gatebot.py
+
+Expected:
+
+{'status': True, 'result': 'B13'}
+
+
+PART 5 - END-TO-END VERIFICATION
+============================================================
+
+Main files:
+- main.py
+- agent.py
+- mcp_trace_sample.jsonl
+- tests/
+
+Important notes:
+- Required trace is:
+  Goal -> Plan -> tools/list -> tools/call(s) -> Answer -> Reflection.
+- Memory must survive restart.
+- A recalled value must become an argument to another MCP tool.
+- One complete JSON-RPC trace must be included in the submission.
+- mcp_trace_sample.jsonl is the included trace evidence.
+
+Run the main multi-tool demonstration:
+
+python main.py
+
+Prompt:
+
+Is AI203 likely to depart on time?
+
+Expected tool order:
+
+get_flight_status -> get_weather -> maintenance_history
+
+Expected MCP order:
+
+initialize -> tools/list -> tools/call -> tools/call -> tools/call
+
+Expected conclusion:
+
+AI203 has operational delay risk because it already has a 35-minute
+delay, visibility is 2.4 km, and the aircraft has two open maintenance
+issues.
+
+Inspect submitted trace:
+
+Get-Content .\mcp_trace_sample.jsonl
+
+Run all tests:
+
+python -m pytest -q
+
+Expected:
+
+12 passed
+
+
+RUNNING THE BASH HELPER
+============================================================
+
+Use Git Bash, WSL, Linux, or macOS because Windows PowerShell does not
+execute .sh files directly.
+
+chmod +x run_helper.sh
+./run_helper.sh part1
+./run_helper.sh part2
+./run_helper.sh part3
+./run_helper.sh part4
+./run_helper.sh part5
+./run_helper.sh all
+
+
+SUBMISSION NOTES
+============================================================
+
+Required ZIP name:
+
+SkyVault_KapilKumar.zip
+
+Important files:
+- data.py
+- tools.py
+- schemas.py
+- agent.py
+- planner.py
+- reflector.py
+- config.py
+- provider.py
+- memory.py
+- mcp_server.py
+- mcp_client.py
+- main.py
+- gatebot.py (optional exploration, included)
+- mcp_trace_sample.jsonl
+- README.md
+- .env.example
+- tests/
+
+Do not include:
+- .env
+- __pycache__/
+- .pytest_cache/
+- personal credentials
+
+Screenshot rule:
+- General screenshots are not mandatory.
+- The assignment requires a complete JSON-RPC trace as either a console
+  screenshot or a trace file.
+- mcp_trace_sample.jsonl satisfies this requirement and README references it.
+- It is still safer to capture optional screenshots of the restart-memory
+  demo and the multi-tool MCP run.
+
+Administrative notes:
+- Roll number is present in README and every Python file.
+- The required variable named heisenberg is in main.py.
+- The roll-number verification POST was attempted from the corporate
+  network, but Zscaler blocked the target URL. Retry it from an allowed
+  network before submission if possible.
